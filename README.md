@@ -64,7 +64,7 @@ cp .env.example .env
 # Edit .env with your Nova API key, SMTP credentials, etc.
 
 # 3. Start Redis (required for Celery)
-redis-server
+redis-server (might not be needed if you have used celery and redis on windows)
 
 # 4. Run the Flask app
 python app.py
