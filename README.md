@@ -1,63 +1,88 @@
 # MarketMe — AI Marketing Agent Platform v2.0
 
-> Single-file Flask app powered by Amazon Nova 2 Lite (chat) and Nova 2 Sonic (voice).  
+> A Flask app powered by Amazon Nova 2 Lite (chat) and Nova 2 Sonic (voice).  
 > AI agent that chats, sends campaigns, monitors email, scrapes leads, analyses images, and controls the UI.
 
----
+
+## Project Structure
+
+```
+marketme/
+│
+├── app.py                  # Flask app factory — entry point
+├── config.py               # All env-var config in one place
+├── extensions.py           # Flask extensions (db, socketio, jwt, celery)
+├── models.py               # SQLAlchemy models
+├── tasks.py                # Celery background tasks
+│
+├── routes/
+│   ├── __init__.py
+│   ├── auth.py             # /api/auth/*  — register, login, miracle link
+│   ├── business.py         # /api/business — create, settings, generate page
+│   ├── campaigns.py        # /api/campaigns — CRUD + send
+│   ├── chat.py             # /api/chat — AI agent (text + image)
+│   ├── contacts.py         # /api/contacts — CRUD, import, CSV pool
+│   ├── inbox.py            # /api/email-threads
+│   ├── products.py         # /api/products — CRUD
+│   └── public.py           # /biz/<slug> public page + SPA catch-all
+│
+├── sockets/
+│   ├── __init__.py
+│   └── events.py           # All SocketIO event handlers + voice bridge
+│
+├── utils/
+│   ├── __init__.py
+│   ├── csv_utils.py        # Shared CSV contacts pool helpers
+│   ├── email_utils.py      # SMTP send + IMAP fetch
+│   ├── intent_handler.py   # Maps AI intents → DB / Celery actions
+│   ├── nova_utils.py       # Nova AI client (chat, page gen, email AI)
+│   ├── scraper.py          # Playwright lead scraper
+│   └── serializers.py      # Model → dict helpers for JSON responses
+│
+├── templates/
+│   └── index.html          # Single-page app HTML (Tailwind + SocketIO)
+│
+├── static/
+│   └── js/
+│       └── app.js          # All frontend JavaScript
+│
+├── .env.example            # Copy to .env and fill in credentials
+└── README.md
+```
 
 ## Quick Start
 
-### 1. Install dependencies
 ```bash
+# 1. Install dependencies
 pip install flask flask-socketio flask-sqlalchemy flask-jwt-extended \
             celery[redis] redis openai websockets playwright \
             itsdangerous python-dotenv
 playwright install chromium
-```
 
-### 2. Create `.env` in your project folder
-```dotenv
-NOVA_API_KEY=your-nova-api-key-here
-SECRET_KEY=any-long-random-string-32-chars-min
-REDIS_URL=redis://localhost:6379/0
-DATABASE_URL=sqlite:///marketme.db
-APP_URL=http://localhost:5000
+# 2. Configure environment
+cp .env.example .env
+# Edit .env with your Nova API key, SMTP credentials, etc.
 
-# System email — all campaigns & auto-replies use this
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=you@gmail.com
-SMTP_PASS=your-app-password
+# 3. Start Redis (required for Celery)
+redis-server
 
-# Inbox monitoring (usually same as SMTP)
-IMAP_HOST=imap.gmail.com
-IMAP_PORT=993
-```
-
-> **Gmail users**: Create an App Password at myaccount.google.com → Security → App Passwords
-
-### 3. Place these files together
-```
-marketme/
-├── app.py
-├── sample_contacts.csv   ← seed data for the shared contact pool
-├── .env
-└── requirements.txt
-```
-
-### 4. Run
-```bash
-# Terminal 1 — web server
+# 4. Run the Flask app
 python app.py
 
-# Terminal 2 — background agent (email monitor + campaigns)
-celery -A app:celery_app worker --beat -l info
-
-# Open browser
-http://localhost:5000
+# 5. In a separate terminal — start the Celery worker
+celery -A app:celery_app worker -l info --pool=solo
+# 6. In a separate terminal — start the Celery beat scheduler
+celery -A app:celery_app worker beat -l info
 ```
 
----
+The app will be available at **http://localhost:5000**
+
+## What runs where
+
+| Process | Responsibility |
+|---------|---------------|
+| `python app.py` | Flask web server, REST API, SocketIO real-time events |
+| `celery worker --beat` | IMAP inbox monitor (every 2 min), campaign sender (every 1 min), lead scraping, follow-up emails |
 
 ## Features
 
